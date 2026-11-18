@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { IpcConnection } from "@oh-my-pi/pi-natives";
 import { getGlobalDaemonRuntimeDir, isEexist, isEnoent, logger, postmortem, toError } from "@oh-my-pi/pi-utils";
 import { resolveWorkerSpawnCmd, workerEnvFromParent } from "../subprocess/worker-client";
-import { canonicalProjectDir, daemonBrokerEndpoint, daemonRuntimeDir } from "./paths";
+import { canonicalDaemonProjectDir, canonicalProjectDir, daemonBrokerEndpoint, daemonRuntimeDir } from "./paths";
 import {
 	DAEMON_BROKER_WORKER_ARG,
 	DAEMON_IDLE_GRACE_ENV,
@@ -457,15 +457,17 @@ export async function createDaemonBrokerClient(
 	projectDir: string,
 	options: DaemonBrokerClientOptions = {},
 ): Promise<DaemonBrokerClient> {
-	const canonical = await canonicalProjectDir(projectDir);
+	const canonical = await (options.runtimeDir === undefined
+		? canonicalDaemonProjectDir(projectDir)
+		: canonicalProjectDir(projectDir));
 	const runtimeDir = options.runtimeDir ?? daemonRuntimeDir(canonical);
 	const token = await readOrCreateToken(runtimeDir);
 	return new SocketDaemonClient(canonical, runtimeDir, token, options);
 }
 
-/** Get the process-shared daemon broker client for one canonical project directory. */
+/** Get the process-shared daemon broker client for one canonical Git worktree (or non-Git directory). */
 export async function daemonClientForProject(projectDir: string): Promise<DaemonBrokerClient> {
-	const canonical = await canonicalProjectDir(projectDir);
+	const canonical = await canonicalDaemonProjectDir(projectDir);
 	return sharedDaemonClient(`project:${canonical}`, () => createDaemonBrokerClient(canonical));
 }
 

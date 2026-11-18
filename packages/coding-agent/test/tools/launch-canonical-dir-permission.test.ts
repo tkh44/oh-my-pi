@@ -3,7 +3,7 @@ import type { PathLike } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { canonicalProjectDir } from "../../src/launch/paths";
+import { canonicalDaemonProjectDir, canonicalProjectDir } from "../../src/launch/paths";
 
 describe("canonicalProjectDir permission fallback", () => {
 	const originalRealpath = fs.realpath.bind(fs);
@@ -35,6 +35,7 @@ describe("canonicalProjectDir permission fallback", () => {
 
 			try {
 				await expect(canonicalProjectDir(projectDir)).resolves.toBe(resolvedProjectDir);
+				await expect(canonicalDaemonProjectDir(projectDir)).resolves.toBe(resolvedProjectDir);
 			} finally {
 				await fs.rm(projectDir, { recursive: true, force: true });
 			}
@@ -52,6 +53,11 @@ describe("canonicalProjectDir permission fallback", () => {
 			await fs.rm(linkDir, { force: true });
 			await fs.rm(targetDir, { recursive: true, force: true });
 		}
+	});
+
+	it("keeps a nonexistent directory inside a Git checkout in its own scope", async () => {
+		const missing = path.join(import.meta.dir, `missing-project-${crypto.randomUUID()}`);
+		await expect(canonicalDaemonProjectDir(missing)).resolves.toBe(path.resolve(missing));
 	});
 
 	it("rethrows realpath errors that are not missing-path or permission errors", async () => {

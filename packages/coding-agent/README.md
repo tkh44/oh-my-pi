@@ -43,3 +43,42 @@ The agent supports three mutually-exclusive memory backends, selected via the `m
    - `HINDSIGHT_BANK_MISSION`, `HINDSIGHT_DEBUG`
 
 Switching backends mid-session immediately replaces the live backend, memory tools, listeners, and system-prompt context. Existing users with `memories.enabled = true|false` are migrated to `memory.backend = "local"|"off"` exactly once on first launch; afterward, `memory.backend` is the sole runtime selector.
+
+## Broker scope
+
+Default broker clients and project-presence leases share the canonical root of
+the nearest Git **worktree**, including when launched from subdirectories or
+through symlinks. Nested repositories and linked worktrees have separate scopes;
+the Git common directory is not the scope key. Non-Git, missing and inaccessible
+directories retain directory scope. Per-user state storage remains unchanged.
+Global services and explicit runtime-directory overrides remain isolated.
+Commands still run in their requested working directory, not the scope root.
+Standalone stream endpoints retain their existing directory scope.
+
+Service names are shared across the worktree. A different session cannot
+implicitly replace a live same-named service launched from another directory;
+choose distinct service names. Same-directory and explicit same-session
+replacement retain their existing behavior.
+
+### How to drain directory-scoped brokers after upgrading
+
+1. Inspect existing scopes with `omp ps --all`. Legacy directory-scoped brokers
+   and the new root-scoped broker may coexist during the transition.
+2. Keep active sessions running until their work is finished. Upgrading does not
+   move their sockets, tokens, records or presence files, disconnect their
+   clients, or send them a shutdown signal.
+3. Close legacy sessions normally. Their brokers use the existing idle grace
+   after the last client and presence lease are released. Persistent services
+   keep their broker alive; stop those services deliberately in their owning
+   session or select their legacy scope in the interactive `omp ps --all` monitor
+   when it is safe to do so. Detached work is not migrated or killed.
+4. Start new sessions with the upgraded version. Root and subdirectory sessions
+   now share one broker. Use `omp ps --all` to check that legacy scopes have no
+   live owners after draining.
+
+Do not delete runtime directories or kill brokers to force convergence. There
+is no instantaneous singleton guarantee across old directory-scoped and new
+root-scoped binaries: old versions cannot participate in the new election, and
+may start additional legacy scopes. Avoid starting the same named work in both
+generations during the transition. New brokers do not discover, adopt, rename
+or restart legacy services.

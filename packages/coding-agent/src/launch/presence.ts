@@ -2,7 +2,7 @@ import type { Dirent } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { isEnoent, logger, postmortem } from "@oh-my-pi/pi-utils";
-import { canonicalProjectDir, daemonRuntimeDir } from "./paths";
+import { canonicalDaemonProjectDir, canonicalProjectDir, daemonRuntimeDir } from "./paths";
 
 const CLIENTS_DIR = "clients";
 const BROKER_PID_FILE = "broker.pid";
@@ -37,7 +37,9 @@ export async function registerDaemonProjectPresence(
 	projectDir: string,
 	runtimeOverride?: string,
 ): Promise<DaemonProjectPresence> {
-	const canonical = await canonicalProjectDir(projectDir);
+	const canonical = await (runtimeOverride === undefined
+		? canonicalDaemonProjectDir(projectDir)
+		: canonicalProjectDir(projectDir));
 	const runtimeDir = runtimeOverride ?? daemonRuntimeDir(canonical);
 	const clientsDir = path.join(runtimeDir, CLIENTS_DIR);
 	await fs.mkdir(clientsDir, { recursive: true, mode: 0o700 });

@@ -6,7 +6,7 @@ import { formatDuration, replaceTabs } from "@oh-my-pi/pi-tui/render/render-util
 import { ToolError } from "@oh-my-pi/pi-tui/tools/tool-errors";
 import { getDaemonRuntimeDir, logger, sanitizeText } from "@oh-my-pi/pi-utils";
 import { type DaemonBrokerClient, daemonClientForProject } from "./client";
-import { canonicalProjectDir } from "./paths";
+import { canonicalDaemonProjectDir } from "./paths";
 import { DAEMON_OUTPUT_PATTERN_FLAGS, type DaemonOperation, type DaemonRpcResult } from "./protocol";
 import { renderTerminalOutputIsolated } from "./terminal-output-worker-client";
 import type { ToolSession } from "../tools";
@@ -158,7 +158,7 @@ export async function findService(
 }
 
 export async function serviceLogPath(session: ToolSession, name: string): Promise<string> {
-	const canonical = await canonicalProjectDir(session.cwd);
+	const canonical = await canonicalDaemonProjectDir(session.cwd);
 	return path.join(getDaemonRuntimeDir(canonical), "daemons", name, "output.log");
 }
 

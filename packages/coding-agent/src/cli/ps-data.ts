@@ -17,7 +17,7 @@ import {
 	isEnoent,
 } from "@oh-my-pi/pi-utils";
 import { createDaemonBrokerClient, type DaemonBrokerClient } from "../launch/client";
-import { canonicalProjectDir, daemonRuntimeDir, readDaemonScopeMeta, readStoredDaemonRecord } from "../launch/paths";
+import { canonicalDaemonProjectDir, daemonRuntimeDir, readDaemonScopeMeta, readStoredDaemonRecord } from "../launch/paths";
 import { readLiveDaemonBrokerPid } from "../launch/presence";
 import type { DaemonSnapshot, DaemonSpec } from "@oh-my-pi/pi-tui/tools/daemon";
 import {
@@ -49,7 +49,7 @@ export async function targetScope(target: PsTarget): Promise<PsScope> {
 			brokerPid: await readLiveDaemonBrokerPid(runtimeDir),
 		};
 	}
-	const projectDir = await canonicalProjectDir(target.dir ?? getProjectDir());
+	const projectDir = await canonicalDaemonProjectDir(target.dir ?? getProjectDir());
 	const runtimeDir = daemonRuntimeDir(projectDir);
 	return { kind: "project", runtimeDir, projectDir, brokerPid: await readLiveDaemonBrokerPid(runtimeDir) };
 }

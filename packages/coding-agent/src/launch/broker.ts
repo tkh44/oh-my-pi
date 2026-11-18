@@ -4,6 +4,7 @@ import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import { FileLock, IpcConnection, IpcServer, Process, type PtyRunResult, PtySession } from "@oh-my-pi/pi-natives";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { isEnoent, isRecord, logger, postmortem, procmgr, sanitizeText, setProcessName } from "@oh-my-pi/pi-utils";
 import { TerminalQueryResponder } from "@oh-my-pi/pi-utils/vterm";
 import { hostHasInheritableConsole } from "../eval/py/spawn-options";
@@ -18,7 +19,9 @@ import { workerEnvFromParent } from "../subprocess/worker-client";
 import {
 	DAEMON_META_FILE,
 	DAEMON_SPEC_FILE,
+	canonicalProjectDir,
 	daemonBrokerEndpoint,
+	daemonRuntimeDir,
 	readStoredDaemonRecord,
 	writeDaemonScopeMeta,
 } from "./paths";
@@ -429,6 +432,7 @@ class DaemonBroker {
 	readonly #projectDir: string;
 	readonly #runtimeDir: string;
 	readonly #endpoint: string;
+	readonly #worktreeScope: boolean;
 	readonly #token: string;
 	readonly #idleGraceMs: number;
 	readonly #restartBackoffBaseMs: number;
@@ -467,6 +471,7 @@ class DaemonBroker {
 		this.#projectDir = projectDir;
 		this.#runtimeDir = runtimeDir;
 		this.#endpoint = daemonBrokerEndpoint(runtimeDir);
+		this.#worktreeScope = runtimeDir === daemonRuntimeDir(projectDir) && vcs.gitInfo(projectDir)?.repoRoot === projectDir;
 		this.#token = token;
 		this.#idleGraceMs = idleGraceMs;
 		this.#restartBackoffBaseMs = restartBackoffBaseMs;
@@ -715,6 +720,19 @@ class DaemonBroker {
 			if (existing) await this.#refreshDetached(existing);
 			if (existing && !terminalState(existing.snapshot.state)) {
 				if (!replace) throw new Error(`Daemon ${spec.name} is already ${existing.snapshot.state}`);
+				// Root-scoped clients from different directories must not turn the
+				// service tool's implicit replace into a stop of another session's job.
+				if (this.#worktreeScope && (owner === undefined || owner !== existing.snapshot.owner) && spec.cwd !== existing.spec.cwd) {
+					const [cwd, existingCwd] = await Promise.all([
+						canonicalProjectDir(spec.cwd),
+						canonicalProjectDir(existing.spec.cwd),
+					]);
+					if (cwd !== existingCwd) {
+						throw new Error(
+							`Daemon ${spec.name} is already running from ${existingCwd} in another session; choose a distinct service name`,
+						);
+					}
+				}
 				await this.#stopRecord(existing, 2_000);
 				if (!terminalState(existing.snapshot.state)) throw new Error(`Daemon ${spec.name} did not stop`);
 			}

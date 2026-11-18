@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { ipcEndpoint } from "@oh-my-pi/pi-natives";
+import * as vcs from "@oh-my-pi/pi-natives/vcs";
 import { getDaemonRuntimeDir, hasFsCode, isEacces, isEisdir, isEnoent } from "@oh-my-pi/pi-utils";
 
 /** Resolve the private runtime directory shared by omp processes in one project directory. */
@@ -36,6 +37,24 @@ export async function canonicalProjectDir(projectDir: string): Promise<string> {
 		if (isEnoent(error) || isEisdir(error) || isEacces(error) || hasFsCode(error, "EPERM")) return resolved;
 		throw error;
 	}
+}
+
+/**
+ * Default broker identity: the nearest Git worktree root, not its shared
+ * common-dir. Non-Git, missing and inaccessible directories keep directory
+ * scope. Explicit runtime overrides must use canonicalProjectDir instead.
+ */
+export async function canonicalDaemonProjectDir(projectDir: string): Promise<string> {
+	const resolved = path.resolve(projectDir);
+	let canonical: string;
+	try {
+		canonical = await fs.realpath(resolved);
+	} catch (error) {
+		if (isEnoent(error) || isEisdir(error) || isEacces(error) || hasFsCode(error, "EPERM")) return resolved;
+		throw error;
+	}
+	const root = vcs.gitInfo(canonical)?.repoRoot;
+	return root ? canonicalProjectDir(root) : canonical;
 }
 
 /**
